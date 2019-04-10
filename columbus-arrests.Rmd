@@ -1,0 +1,80 @@
+---
+title: "Columbus Arrests"
+author: "Albert Shin"
+date: "4/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, echo=FALSE}
+# Basic library needed for functions like mutate() and arrange()
+library(tidyverse)
+# Package for file operations
+library(fs)
+# Package for shape files
+library(sf)
+# Package for dates and time
+library(lubridate)
+# Package for tables
+library(gt)
+# Package for graphs
+library(ggplot2)
+# Package for ggplot aesthetic themes
+library(ggthemes)
+# Package for animating ggplot
+library(gganimate)
+```
+
+```{r download, message=FALSE, echo=FALSE}
+# read the columbus rds file
+columbus <- read_rds(url("https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_oh_columbus_2019_02_25.rds"))
+
+# download the shape files and have the destination file as columbusshapes.tgz, mode = "wb" for accessibility on windows
+download.file(url = "https://stacks.stanford.edu/file/druid:tr137st9964/tr137st9964_oh_columbus_shapefiles_2019_02_25.tgz", destfile = "columbusshapes.tgz", mode = "wb")
+
+# untarto extract files
+untar("columbusshapes.tgz")
+
+# Read simple features from the .shp shape file
+shapes_data = read_sf("oh_columbus_shapefiles/shapes.shp")
+
+# Delete files
+file_delete(c("columbusshapes.tgz", "oh_columbus_shapefiles"))
+```
+
+```{r work, message=FALSE, echo=FALSE}
+# coarrests are 
+coarrests <- columbus %>%
+  filter(arrest_made) %>% 
+  # filter out "NA" values for "lat", "lng", "time", "precinct", and "zone"
+  filter(!is.na(lat)) %>% 
+  filter(!is.na(lng)) %>% 
+  filter(!is.na(time)) %>% 
+  filter(!is.na(precinct)) %>%
+  filter(!is.na(zone)) %>% 
+  # mutate time = hour(time) to get the specific hour in the day of each stop time
+  mutate(time = hour(time))
+
+
+co_arrest_locations <- st_as_sf(coarrests, 
+                             coords = c("lng", "lat"), 
+                             crs = 4326) 
+# create a graph, with data = shapes_data
+ggplot(data = shapes_data) +
+  # geom_sf for the dots on the map of Hartford
+  geom_sf() +
+  # data is arrest_locations in Columbus, alpha = 0.75  so that overlapping values are seen clearer
+  geom_sf(data = co_arrest_locations, alpha = 0.75) +
+  # theme_map theme for map plots
+  theme_map() + 
+  # labels to thee graph
+  labs(title = "Arrest Locations in Columbus by Hour of Day",
+       # used {current_frame} so that when the gganimate transitions between the hours, the time displayed title changes as well based on the current_frame aka current hour
+       subtitle = "December 2011 - December 2016, Time: {current_frame}:00 EST", 
+       caption = "Source: Stanford Open Policing Project" ) + 
+  # reposition the legend
+  theme(legend.position = c(1.0, 0.2)) + 
+  # add transition_manual(time) so that there is a transition by the hour
+  transition_manual(time)
+```
+
+Collaborators: Nicholas Dow, Neil Khurana, Adiya Abdilkhay, Mike Silva
